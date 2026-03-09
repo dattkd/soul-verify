@@ -1,6 +1,16 @@
 @import "tailwindcss";
 
+:root {
+  --font-inter: 'Inter', system-ui, sans-serif;
+}
+
 body {
-  background: #000;
+  background: #0a0a0a;
   color: #fff;
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

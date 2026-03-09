@@ -187,7 +187,7 @@ export async function runVerificationPipeline(input: PipelineInput): Promise<voi
     let extractedFrames: Buffer[] = [];
     if (isVideo) {
       try {
-        extractedFrames = await extractFramesFromBuffer(buffer, 5);
+        extractedFrames = await extractFramesFromBuffer(buffer, 3);
       } catch { /* ffmpeg unavailable */ }
     }
 

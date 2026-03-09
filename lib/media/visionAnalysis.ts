@@ -6,7 +6,7 @@ export interface VisionAnalysisResult {
   reasoning: string;
 }
 
-const VISION_MODEL = 'claude-sonnet-4-6';
+const VISION_MODEL = 'claude-haiku-4-5-20251001';
 
 const IMAGE_ANALYSIS_PROMPT = `You are a forensic digital media expert specialising in detecting AI-generated images. Be accurate — both false positives (calling real content AI) and false negatives (missing AI content) are harmful.
 
@@ -184,7 +184,7 @@ export async function analyzeImageContent(
   try {
     const response = await client.messages.create({
       model: VISION_MODEL,
-      max_tokens: 768,
+      max_tokens: 512,
       system: 'You are a forensic media analyst. Be accurate and balanced — both false positives and false negatives are harmful. Only flag content as AI-generated when you see clear, specific evidence.',
       messages: [
         {
@@ -229,7 +229,7 @@ export async function analyzeVideoFrames(
   const client = getClient();
   if (!client || frames.length === 0) return null;
 
-  const selected = frames.slice(0, 5);
+  const selected = frames.slice(0, 3);
 
   // Compute temporal difference frames — this is the key forensic technique
   const diffFrames = await computeTemporalDiffs(selected);
@@ -252,7 +252,7 @@ export async function analyzeVideoFrames(
   try {
     const response = await client.messages.create({
       model: VISION_MODEL,
-      max_tokens: 1024,
+      max_tokens: 768,
       system: 'You are a forensic media analyst specialising in AI-generated video detection. The temporal difference frames are the most important forensic signal — examine them carefully. AI video often has unnaturally smooth or structured noise in static regions. Only flag as AI-generated when you see clear evidence, not just ambiguous signals.',
       messages: [
         {

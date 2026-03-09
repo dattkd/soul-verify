@@ -2,57 +2,91 @@ import { SubmitForm } from '@/components/SubmitForm';
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-black text-white">
-      <div className="max-w-xl mx-auto px-6 py-24">
-        <div className="mb-16">
-          <p className="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-6">Soul</p>
-          <h1 className="text-4xl font-light tracking-tight text-white leading-tight mb-4">
-            Is this real<br />or AI-generated?
-          </h1>
-          <p className="text-sm font-mono text-zinc-500 leading-relaxed">
-            Paste any link or upload a file. SOUL runs it through a<br />
-            specialized AI detection model and returns a verdict.
-          </p>
-        </div>
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col">
 
-        <SubmitForm />
+      {/* Nav */}
+      <nav className="border-b border-white/[0.06] px-6 md:px-12 py-5 flex items-center justify-between flex-shrink-0">
+        <span className="text-sm font-semibold tracking-[0.2em] uppercase">SOUL</span>
+        <span className="text-xs text-zinc-600 tracking-widest uppercase font-mono">Verify</span>
+      </nav>
 
-        <div className="mt-20 pt-12 border-t border-zinc-900">
-          <p className="text-xs font-mono text-zinc-600 uppercase tracking-widest mb-6">How it works</p>
-          <div className="space-y-4">
-            {[
-              ['01', 'Paste a link or upload', 'Instagram, TikTok, Twitter/X, YouTube, or any direct image or video file.'],
-              ['02', 'Two AI models analyze it', 'Hive\'s specialist detection model + Claude vision run in parallel on every frame.'],
-              ['03', 'Get a verdict', 'Likely Original, Likely AI-Generated, or Insufficient Evidence — with the reasoning.'],
-            ].map(([num, title, desc]) => (
-              <div key={num} className="flex gap-4">
-                <span className="font-mono text-xs text-zinc-700 pt-0.5 w-6 flex-shrink-0">{num}</span>
-                <div>
-                  <p className="text-sm text-zinc-300 font-medium">{title}</p>
-                  <p className="text-xs font-mono text-zinc-600 mt-0.5">{desc}</p>
-                </div>
+      {/* Hero */}
+      <div className="flex-1 flex flex-col">
+        <div className="max-w-7xl w-full mx-auto px-6 md:px-12 pt-16 md:pt-28 pb-16">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-start">
+
+            {/* Left: headline */}
+            <div>
+              <p className="text-xs font-mono text-zinc-600 tracking-[0.2em] uppercase mb-8">
+                Content Verification
+              </p>
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-light tracking-tight leading-[1.05] mb-8 text-white">
+                Real or<br />AI&#8209;generated?
+              </h1>
+              <p className="text-zinc-400 text-base md:text-lg font-light leading-relaxed max-w-sm">
+                Submit any image or video. SOUL runs it through multiple independent detection layers and returns a verdict.
+              </p>
+
+              {/* Verdict pills */}
+              <div className="mt-10 flex flex-wrap gap-2">
+                {[
+                  { label: 'Likely Original', color: '#22c55e' },
+                  { label: 'Likely AI-Generated', color: '#a855f7' },
+                  { label: 'Insufficient Evidence', color: '#52525b' },
+                ].map(({ label, color }) => (
+                  <span
+                    key={label}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono tracking-wider"
+                    style={{ color, border: `1px solid ${color}30`, background: `${color}0d` }}
+                  >
+                    <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: color }} />
+                    {label}
+                  </span>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* Right: form */}
+            <div className="lg:pt-16">
+              <SubmitForm />
+            </div>
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-zinc-900">
-          <p className="text-xs font-mono text-zinc-600 uppercase tracking-widest mb-4">Possible verdicts</p>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: 'Likely Original', color: '#22c55e' },
-              { label: 'Likely AI-Generated', color: '#a855f7' },
-              { label: 'Manipulated / Edited', color: '#ef4444' },
-              { label: 'Insufficient Evidence', color: '#6b7280' },
-            ].map(({ label, color }) => (
-              <div key={label} className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                <span className="text-xs font-mono text-zinc-500">{label}</span>
-              </div>
-            ))}
+        {/* How it works */}
+        <div className="border-t border-white/[0.06] mt-auto">
+          <div className="max-w-7xl w-full mx-auto px-6 md:px-12 py-16 md:py-20">
+            <p className="text-xs font-mono text-zinc-600 tracking-[0.2em] uppercase mb-10">How it works</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+              {[
+                {
+                  num: '01',
+                  title: 'Submit content',
+                  desc: 'Paste a link from Instagram, TikTok, Twitter/X, YouTube — or upload an image or video directly.',
+                },
+                {
+                  num: '02',
+                  title: 'Multi-layer analysis',
+                  desc: 'SOUL runs the content through several independent detection methods simultaneously, including visual frame analysis.',
+                },
+                {
+                  num: '03',
+                  title: 'Get a verdict',
+                  desc: 'Likely Original, Likely AI-Generated, or Insufficient Evidence — with the evidence and reasoning behind it.',
+                },
+              ].map(({ num, title, desc }) => (
+                <div key={num} className="flex gap-5">
+                  <span className="font-mono text-xs text-zinc-700 pt-1 flex-shrink-0 w-6">{num}</span>
+                  <div>
+                    <p className="text-sm font-medium text-zinc-200 mb-1.5">{title}</p>
+                    <p className="text-xs font-mono text-zinc-600 leading-relaxed">{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

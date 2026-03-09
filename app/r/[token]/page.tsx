@@ -40,7 +40,6 @@ export default async function ReportPage({ params }: ReportPageProps) {
   const asset = job.assets[0];
   const frames = asset?.derivedArtifacts.filter(a => a.type === 'frame') ?? [];
 
-  // Extract detection signals
   const visionSignal = job.evidenceSignals.find(s => s.name === 'vision_ai_probability');
   const visionDetails = visionSignal?.detailsJson as VisionDetails | null;
   const visionProb = visionSignal ? Number(visionSignal.value) : null;
@@ -52,14 +51,8 @@ export default async function ReportPage({ params }: ReportPageProps) {
   const seSignal = job.evidenceSignals.find(s => s.name === 'sightengine_ai_probability');
   const seProb = seSignal ? Number(seSignal.value) : null;
 
-  // Final displayed AI probability = max across all detectors
-  const aiProb = Math.max(
-    hiveProb ?? 0,
-    seProb ?? 0,
-    visionProb ?? 0,
-  ) || null;
+  const aiProb = Math.max(hiveProb ?? 0, seProb ?? 0, visionProb ?? 0) || null;
 
-  // Non-detector signals for the evidence table
   const tableSignals = job.evidenceSignals.filter(
     s => !['vision_ai_probability', 'hive_ai_probability', 'sightengine_ai_probability', 'ai_probability'].includes(s.name),
   );
@@ -69,186 +62,202 @@ export default async function ReportPage({ params }: ReportPageProps) {
     catch { return job.sourceUrl ?? '—'; }
   })();
 
-  return (
-    <main className="min-h-screen bg-black text-white">
-      <div className="max-w-2xl mx-auto px-6 py-16">
+  const aiColor = aiProb !== null
+    ? aiProb >= 65 ? '#f87171' : aiProb >= 35 ? '#facc15' : '#4ade80'
+    : '#52525b';
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-10">
-          <p className="font-mono text-xs text-zinc-600 uppercase tracking-widest">Soul / Report</p>
-          <a
-            href="/"
-            className="font-mono text-xs uppercase tracking-widest px-4 py-2 border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-white rounded transition-colors"
-          >
-            ↩ Verify Another
-          </a>
-        </div>
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] text-white">
+
+      {/* Nav */}
+      <nav className="border-b border-white/[0.06] px-6 md:px-12 py-5 flex items-center justify-between">
+        <span className="text-sm font-semibold tracking-[0.2em] uppercase">SOUL</span>
+        <a
+          href="/"
+          className="text-xs font-mono uppercase tracking-widest px-4 py-2 border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-white rounded-full transition-colors"
+        >
+          ↩ Verify Another
+        </a>
+      </nav>
+
+      <div className="max-w-7xl w-full mx-auto px-6 md:px-12 py-12 md:py-16">
 
         {/* Verdict */}
         {result ? (
-          <div className="mb-10">
+          <div className="mb-12 pb-12 border-b border-white/[0.06]">
             <VerdictBadge verdict={result.verdict} confidence={result.confidence} />
-            <p className="mt-4 text-sm font-mono text-zinc-400 leading-relaxed max-w-lg">
+            <p className="mt-5 text-sm text-zinc-400 leading-relaxed max-w-2xl font-light">
               {result.explanation}
             </p>
           </div>
         ) : (
-          <p className="text-sm font-mono text-zinc-500 mb-10">Report pending.</p>
+          <p className="text-sm text-zinc-500 mb-12">Report pending.</p>
         )}
 
-        {/* AI Detection Analysis */}
-        {aiProb !== null && (
-          <section className="mb-10 border border-zinc-800 rounded p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-mono text-zinc-500 uppercase tracking-widest">AI Detection</h2>
-              <div className="flex items-center gap-2">
-                <span className={`font-mono text-3xl font-bold ${aiProb >= 55 ? 'text-red-400' : aiProb >= 30 ? 'text-yellow-400' : 'text-green-400'}`}>
-                  {aiProb}%
-                </span>
-                <span className="font-mono text-xs text-zinc-600">AI probability</span>
-              </div>
-            </div>
+        {/* Main content grid */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-10">
 
-            {/* Probability bar */}
-            <div className="h-1.5 bg-zinc-900 rounded mb-5">
-              <div
-                className={`h-full rounded ${aiProb >= 55 ? 'bg-red-500' : aiProb >= 30 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                style={{ width: `${aiProb}%` }}
-              />
-            </div>
+          {/* Left col: AI Detection (2/3 width) */}
+          <div className="xl:col-span-2 space-y-6">
 
-            {/* Sightengine — video-native detector */}
-            {seProb !== null && (
-              <div className="mb-4 pb-4 border-b border-zinc-900">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-mono text-zinc-600 uppercase tracking-wider">Sightengine Video Analysis</span>
-                  <span className={`font-mono text-sm font-bold ${seProb >= 55 ? 'text-red-400' : seProb >= 30 ? 'text-yellow-400' : 'text-green-400'}`}>
-                    {seProb}%
-                  </span>
+            {/* AI Detection block */}
+            {aiProb !== null && (
+              <div className="border border-white/[0.06] rounded-xl p-6 md:p-8">
+                <div className="flex items-start justify-between mb-6">
+                  <h2 className="text-xs font-mono text-zinc-500 tracking-[0.2em] uppercase">AI Detection</h2>
+                  <div className="text-right">
+                    <span className="font-mono text-4xl font-bold tabular-nums" style={{ color: aiColor }}>
+                      {aiProb}%
+                    </span>
+                    <p className="text-xs font-mono text-zinc-600 mt-0.5">AI probability</p>
+                  </div>
                 </div>
-                <p className="text-xs font-mono text-zinc-600">Raw video file analyzed — not extracted frames</p>
-              </div>
-            )}
 
-            {/* Hive — image fingerprint model */}
-            {hiveProb !== null && (
-              <div className="mb-4 pb-4 border-b border-zinc-900">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-mono text-zinc-600 uppercase tracking-wider">Hive Image Detection</span>
-                  <span className={`font-mono text-sm font-bold ${hiveProb >= 55 ? 'text-red-400' : hiveProb >= 30 ? 'text-yellow-400' : 'text-green-400'}`}>
-                    {hiveProb}%
-                  </span>
-                </div>
-                {hiveDetails?.topSource && hiveDetails.topSource !== 'none' && (
-                  <p className="text-xs font-mono text-zinc-500">
-                    Attributed to: <span className="text-zinc-300">{hiveDetails.topSource}</span>
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Claude vision reasoning */}
-            {visionProb !== null && (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-mono text-zinc-600 uppercase tracking-wider">Claude Vision Analysis</span>
-                  <span className={`font-mono text-sm font-bold ${visionProb >= 55 ? 'text-red-400' : visionProb >= 30 ? 'text-yellow-400' : 'text-green-400'}`}>
-                    {visionProb}%
-                  </span>
-                </div>
-                {visionDetails?.reasoning && (
-                  <p className="text-sm font-mono text-zinc-400 leading-relaxed mb-3">
-                    {visionDetails.reasoning}
-                  </p>
-                )}
-                {visionDetails?.signals && visionDetails.signals.length > 0 && (
-                  <ul className="space-y-1.5">
-                    {visionDetails.signals.map((sig, i) => (
-                      <li key={i} className="flex gap-3 text-xs font-mono text-zinc-500 leading-relaxed">
-                        <span className="text-zinc-700 flex-shrink-0">·</span>
-                        <span>{sig}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* Extracted frames */}
-        {frames.length > 0 && (
-          <section className="mb-10">
-            <h2 className="text-xs font-mono text-zinc-600 uppercase tracking-widest mb-4">
-              Analyzed Frames ({frames.length})
-            </h2>
-            <div className="grid grid-cols-5 gap-2">
-              {frames.map((frame, i) => (
-                <div key={frame.id} className="bg-zinc-900 rounded overflow-hidden aspect-video">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`/api/assets/${frame.storageKey}`}
-                    alt={`Frame ${i + 1}`}
-                    className="w-full h-full object-cover"
+                {/* Bar */}
+                <div className="h-1 bg-zinc-900 rounded-full mb-8">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{ width: `${aiProb}%`, background: aiColor }}
                   />
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
 
-        {/* Job metadata */}
-        <div className="grid grid-cols-2 gap-px bg-zinc-900 rounded overflow-hidden mb-10">
-          {[
-            ['Status', job.status.toUpperCase()],
-            ['Source', sourceHostname],
-            ['Submitted', new Date(job.createdAt).toLocaleString()],
-            ['Completed', job.completedAt ? new Date(job.completedAt).toLocaleString() : '—'],
-          ].map(([label, value]) => (
-            <div key={label} className="bg-black p-4">
-              <p className="text-xs font-mono text-zinc-600 uppercase tracking-wider mb-1">{label}</p>
-              <p className="text-sm font-mono text-zinc-300 truncate">{value}</p>
-            </div>
-          ))}
-        </div>
+                <div className="space-y-6">
+                  {/* Visual Analysis (was Claude vision) */}
+                  {visionProb !== null && (
+                    <div className="pt-6 border-t border-white/[0.04]">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-mono text-zinc-500 tracking-[0.15em] uppercase">Visual Analysis</span>
+                        <span className="font-mono text-sm font-bold tabular-nums" style={{ color: visionProb >= 65 ? '#f87171' : visionProb >= 35 ? '#facc15' : '#4ade80' }}>
+                          {visionProb}%
+                        </span>
+                      </div>
+                      {visionDetails?.reasoning && (
+                        <p className="text-sm text-zinc-400 leading-relaxed mb-4 font-light">
+                          {visionDetails.reasoning}
+                        </p>
+                      )}
+                      {visionDetails?.signals && visionDetails.signals.length > 0 && (
+                        <ul className="space-y-2">
+                          {visionDetails.signals.map((sig, i) => (
+                            <li key={i} className="flex gap-3 text-xs font-mono text-zinc-500 leading-relaxed">
+                              <span className="text-zinc-700 flex-shrink-0 mt-0.5">·</span>
+                              <span>{sig}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
 
-        {/* Asset metadata */}
-        {asset && (
-          <section className="mb-10">
-            <h2 className="text-xs font-mono text-zinc-600 uppercase tracking-widest mb-4">Asset</h2>
-            <div className="grid grid-cols-2 gap-px bg-zinc-900 rounded overflow-hidden">
-              {[
-                ['Type', asset.mimeType ?? '—'],
-                ['Size', asset.sizeBytes ? `${(asset.sizeBytes / 1024).toFixed(1)} KB` : '—'],
-                ['Dimensions', asset.width && asset.height ? `${asset.width} × ${asset.height}` : '—'],
-                ['Duration', asset.durationMs ? `${(asset.durationMs / 1000).toFixed(1)}s` : '—'],
-                ['SHA-256', asset.sha256 ? asset.sha256.slice(0, 16) + '...' : '—'],
-                ['Codec', asset.codec ?? '—'],
-              ].map(([label, value]) => (
-                <div key={label} className="bg-black p-4">
-                  <p className="text-xs font-mono text-zinc-600 uppercase tracking-wider mb-1">{label}</p>
-                  <p className="text-sm font-mono text-zinc-300 truncate">{value}</p>
+                  {/* Temporal Analysis (was Sightengine) */}
+                  {seProb !== null && (
+                    <div className="pt-6 border-t border-white/[0.04]">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-mono text-zinc-500 tracking-[0.15em] uppercase">Temporal Analysis</span>
+                        <span className="font-mono text-sm font-bold tabular-nums" style={{ color: seProb >= 65 ? '#f87171' : seProb >= 35 ? '#facc15' : '#4ade80' }}>
+                          {seProb}%
+                        </span>
+                      </div>
+                      <p className="text-xs font-mono text-zinc-600">Frame-by-frame motion pattern analysis</p>
+                    </div>
+                  )}
+
+                  {/* Pattern Detection (was Hive) */}
+                  {hiveProb !== null && (
+                    <div className="pt-6 border-t border-white/[0.04]">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-mono text-zinc-500 tracking-[0.15em] uppercase">Pattern Detection</span>
+                        <span className="font-mono text-sm font-bold tabular-nums" style={{ color: hiveProb >= 65 ? '#f87171' : hiveProb >= 35 ? '#facc15' : '#4ade80' }}>
+                          {hiveProb}%
+                        </span>
+                      </div>
+                      {hiveDetails?.topSource && hiveDetails.topSource !== 'none' && (
+                        <p className="text-xs font-mono text-zinc-500 mt-1">
+                          Source: <span className="text-zinc-300">{hiveDetails.topSource}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
+              </div>
+            )}
+
+            {/* Analyzed frames */}
+            {frames.length > 0 && (
+              <div className="border border-white/[0.06] rounded-xl p-6 md:p-8">
+                <h2 className="text-xs font-mono text-zinc-500 tracking-[0.2em] uppercase mb-5">
+                  Analyzed Frames ({frames.length})
+                </h2>
+                <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+                  {frames.map((frame, i) => (
+                    <div key={frame.id} className="bg-zinc-900 rounded-lg overflow-hidden aspect-video">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/assets/${frame.storageKey}`}
+                        alt={`Frame ${i + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Evidence signals */}
+            {tableSignals.length > 0 && (
+              <div className="border border-white/[0.06] rounded-xl p-6 md:p-8">
+                <h2 className="text-xs font-mono text-zinc-500 tracking-[0.2em] uppercase mb-5">Evidence Signals</h2>
+                <EvidenceTable signals={tableSignals as Parameters<typeof EvidenceTable>[0]['signals']} />
+              </div>
+            )}
+          </div>
+
+          {/* Right col: metadata (1/3 width) */}
+          <div className="space-y-4">
+            <div className="border border-white/[0.06] rounded-xl p-6">
+              <h2 className="text-xs font-mono text-zinc-500 tracking-[0.2em] uppercase mb-5">Submission</h2>
+              <div className="space-y-4">
+                {[
+                  ['Status', job.status.toUpperCase()],
+                  ['Source', sourceHostname],
+                  ['Submitted', new Date(job.createdAt).toLocaleString()],
+                  ['Completed', job.completedAt ? new Date(job.completedAt).toLocaleString() : '—'],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <p className="text-xs font-mono text-zinc-600 uppercase tracking-wider mb-0.5">{label}</p>
+                    <p className="text-sm text-zinc-300 truncate">{value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </section>
-        )}
 
-        {/* Other evidence signals */}
-        {tableSignals.length > 0 && (
-          <section className="mb-10">
-            <h2 className="text-xs font-mono text-zinc-600 uppercase tracking-widest mb-4">Evidence Signals</h2>
-            <EvidenceTable signals={tableSignals as Parameters<typeof EvidenceTable>[0]['signals']} />
-          </section>
-        )}
+            {asset && (
+              <div className="border border-white/[0.06] rounded-xl p-6">
+                <h2 className="text-xs font-mono text-zinc-500 tracking-[0.2em] uppercase mb-5">File</h2>
+                <div className="space-y-4">
+                  {[
+                    ['Type', asset.mimeType ?? '—'],
+                    ['Size', asset.sizeBytes ? `${(asset.sizeBytes / 1024 / 1024).toFixed(2)} MB` : '—'],
+                    ['Dimensions', asset.width && asset.height ? `${asset.width} × ${asset.height}` : '—'],
+                    ['Duration', asset.durationMs ? `${(asset.durationMs / 1000).toFixed(1)}s` : '—'],
+                    ['Hash', asset.sha256 ? asset.sha256.slice(0, 12) + '…' : '—'],
+                    ['Codec', asset.codec ?? '—'],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <p className="text-xs font-mono text-zinc-600 uppercase tracking-wider mb-0.5">{label}</p>
+                      <p className="text-sm font-mono text-zinc-300 truncate">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        <div className="pt-8 border-t border-zinc-900">
-          <p className="text-xs font-mono text-zinc-700">
-            This report summarizes available evidence. It does not guarantee absolute truth.
-            SOUL evaluates signals, not certainty.
-          </p>
+            <p className="text-xs font-mono text-zinc-700 px-1 leading-relaxed">
+              This report summarizes available evidence. SOUL evaluates signals, not certainty.
+            </p>
+          </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

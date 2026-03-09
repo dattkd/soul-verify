@@ -1,15 +1,18 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
 
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+
 export const metadata: Metadata = {
-  title: 'Soul Verify',
-  description: 'Verify source signals and provenance.',
+  title: 'Soul — Content Verification',
+  description: 'Is this real or AI-generated? SOUL analyzes images and videos and returns a verdict.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="bg-black text-white antialiased">{children}</body>
+    <html lang="en" className={inter.variable}>
+      <body className="bg-[#0a0a0a] text-white antialiased font-sans">{children}</body>
     </html>
   );
 }
