@@ -52,15 +52,15 @@ CAMERA & SENSOR AUTHENTICITY:
 Respond ONLY with valid JSON — no markdown, no code fences:
 {
   "aiGeneratedProbability": <integer 0-100>,
-  "signals": [<array of max 6 specific, precise observations>],
-  "reasoning": "<2-3 sentence forensic conclusion referencing specific evidence>"
+  "signals": [<array of max 3 short, punchy observations — one line each, no jargon>],
+  "reasoning": "<1 confident sentence saying what you found and why>"
 }
 
 Calibration:
-- 0-25: strong evidence of real photograph — visible sensor noise, optical imperfections, organic micro-patterns
-- 26-50: probably real but contains ambiguous features worth noting
-- 51-64: more likely AI — multiple soft signals present across different categories
-- 65-100: likely or certainly AI-generated — clear generative artifacts identified`;
+- 0-25: strong evidence of real photograph
+- 26-50: probably real
+- 51-64: likely AI
+- 65-100: clearly AI-generated`;
 
 /**
  * Build the video analysis prompt dynamically based on what frames we're sending.
@@ -127,15 +127,15 @@ Much AI content is designed to look like viral phone footage. Specific signals:
 Respond ONLY with valid JSON — no markdown, no code fences:
 {
   "aiGeneratedProbability": <integer 0-100>,
-  "signals": [<array of max 6 specific observations with precise visual evidence>],
-  "reasoning": "<2-3 sentence forensic conclusion naming specific signals observed>"
+  "signals": [<array of max 3 short, punchy observations — one line each, no jargon>],
+  "reasoning": "<1 confident sentence saying what you found and why>"
 }
 
 Calibration:
-- 0-25: strong evidence of real footage — organic temporal noise, natural biological motion, physics-consistent motion
-- 26-50: probably real but some ambiguous features
-- 51-64: ambiguous — multiple soft signals, cannot rule out AI
-- 65-100: likely AI — clear evidence from temporal analysis, biological motion failure, or generator-specific artifacts`;
+- 0-25: strong evidence of real footage
+- 26-50: probably real
+- 51-64: likely AI
+- 65-100: clearly AI-generated`;
 }
 
 function getClient(): Anthropic | null {
@@ -244,8 +244,8 @@ export async function analyzeImageContent(
   try {
     const response = await client.messages.create({
       model: VISION_MODEL,
-      max_tokens: 512,
-      system: 'You are a forensic media analyst. Be accurate and balanced — both false positives and false negatives are harmful. Only flag content as AI-generated when you see clear, specific evidence.',
+      max_tokens: 256,
+      system: 'You are a media analyst detecting AI-generated content. Be direct and confident. Keep signals short and plain — no jargon.',
       messages: [
         {
           role: 'user',
@@ -311,8 +311,8 @@ export async function analyzeVideoFrames(
   try {
     const response = await client.messages.create({
       model: VISION_MODEL,
-      max_tokens: 1024,
-      system: 'You are an expert forensic media analyst with deep knowledge of AI video generation systems used in 2024-2026. You have studied thousands of examples from Sora, Kling, Runway, HunyuanVideo and other generators. The temporal difference statistics and frames are your primary forensic tool. Be precise and specific in your observations.',
+      max_tokens: 256,
+      system: 'You are a media analyst detecting AI-generated video. Be direct and confident. Keep signals short and plain — no jargon.',
       messages: [
         {
           role: 'user',

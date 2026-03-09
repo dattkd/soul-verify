@@ -232,26 +232,6 @@ export default async function ReportPage({ params }: ReportPageProps) {
               </div>
             )}
 
-            {/* Analyzed frames */}
-            {frames.length > 0 && (
-              <div className="border border-white/[0.06] rounded-xl p-6 md:p-8">
-                <h2 className="text-xs font-mono text-zinc-500 tracking-[0.2em] uppercase mb-5">
-                  Analyzed Frames ({frames.length})
-                </h2>
-                <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-                  {frames.map((frame, i) => (
-                    <div key={frame.id} className="bg-zinc-900 rounded-lg overflow-hidden aspect-video">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`/api/assets/${frame.storageKey}`}
-                        alt={`Frame ${i + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Evidence signals */}
             {tableSignals.length > 0 && (
