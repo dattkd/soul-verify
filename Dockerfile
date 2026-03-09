@@ -1,7 +1,7 @@
 FROM node:20-alpine AS base
 
 # Install system dependencies: ffmpeg + yt-dlp
-RUN apk add --no-cache ffmpeg python3 curl ca-certificates && \
+RUN apk add --no-cache ffmpeg python3 curl ca-certificates openssl libc6-compat && \
     curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
       -o /usr/local/bin/yt-dlp && \
     chmod +x /usr/local/bin/yt-dlp
