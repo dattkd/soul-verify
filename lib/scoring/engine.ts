@@ -100,17 +100,16 @@ export function computeVerdict(input: ScoringInput): ScoringOutput {
   score = Math.round(Math.max(0, Math.min(100, score)));
 
   // ── VERDICT ───────────────────────────────────────────────────────────────
-  // Primary axis: is this AI-generated or authentic?
-  // Vision AI probability ≥ 75% → LIKELY_AI_GENERATED (high confidence required)
-  // Authenticity score ≥ 60 → LIKELY_ORIGINAL
-  // Otherwise → INSUFFICIENT_EVIDENCE (honest about uncertainty)
+  // ≥50% AI probability → LIKELY_AI_GENERATED (more likely AI than not)
+  // ≤30% AI probability → LIKELY_ORIGINAL (strong evidence of real content)
+  // 31–49% → INSUFFICIENT_EVIDENCE (genuinely uncertain)
 
   let verdict: Verdict;
-  if (aiProb >= 65) {
+  if (aiProb >= 50) {
     verdict = Verdict.LIKELY_AI_GENERATED;
   } else if (isEditingSoftware && input.nearDuplicateFound) {
     verdict = Verdict.MANIPULATED_OR_EDITED;
-  } else if (score >= 60) {
+  } else if (aiProb <= 30) {
     verdict = Verdict.LIKELY_ORIGINAL;
   } else {
     verdict = Verdict.INSUFFICIENT_EVIDENCE;
@@ -123,12 +122,12 @@ function generateExplanation(verdict: Verdict, input: ScoringInput, aiProb: numb
   const parts: string[] = [];
 
   if (input.aiSuspicionScore !== undefined) {
-    if (aiProb >= 65) {
-      parts.push(`Visual analysis assessed a ${aiProb}% probability of AI generation — this content shows signals of being AI-generated.`);
-    } else if (aiProb <= 25) {
-      parts.push(`Visual analysis assessed a ${aiProb}% probability of AI generation — content appears authentic.`);
+    if (aiProb >= 50) {
+      parts.push(`Detection models assessed a ${aiProb}% probability of AI generation.`);
+    } else if (aiProb <= 30) {
+      parts.push(`Detection models assessed a ${aiProb}% probability of AI generation — content appears authentic.`);
     } else {
-      parts.push(`Visual analysis assessed a ${aiProb}% probability of AI generation — results are inconclusive.`);
+      parts.push(`Detection models assessed a ${aiProb}% probability of AI generation — results are inconclusive.`);
     }
   } else {
     parts.push('No visual analysis was available — verdict based on metadata signals only.');

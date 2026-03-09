@@ -6,7 +6,7 @@ export interface VisionAnalysisResult {
   reasoning: string;
 }
 
-const VISION_MODEL = 'claude-haiku-4-5-20251001';
+const VISION_MODEL = 'claude-sonnet-4-6';
 
 const IMAGE_ANALYSIS_PROMPT = `You are a forensic digital media analyst specialising in detecting AI-generated images from 2024-2026 generators: Flux 1.1 Pro, Midjourney v6/v7, DALL-E 3, Stable Diffusion 3, Firefly 3, Ideogram v3, and similar.
 
@@ -289,26 +289,27 @@ export async function analyzeVideoFrames(
   const client = getClient();
   if (!client || frames.length === 0) return null;
 
-  // Use only the middle frame — enough for visual analysis, much faster than sending 3+
-  const middleFrame = frames[Math.floor(frames.length / 2)];
+  // Send 3 frames (first, middle, last) + diff stats as text for temporal analysis
+  const selected = [
+    frames[0],
+    frames[Math.floor(frames.length / 2)],
+    frames[frames.length - 1],
+  ].filter(Boolean);
 
-  // Compute diff stats as text only — no need to send diff images to Claude
-  const diffResult = await computeTemporalDiffs(frames.slice(0, 3));
+  const diffResult = await computeTemporalDiffs(selected);
   console.log(`[vision] Diff stats: ${JSON.stringify(diffResult.stats)}`);
 
-  const imageBlocks: Anthropic.ImageBlockParam[] = [
-    {
-      type: 'image' as const,
-      source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: middleFrame.toString('base64') },
-    },
-  ];
+  const imageBlocks: Anthropic.ImageBlockParam[] = selected.map(f => ({
+    type: 'image' as const,
+    source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: f.toString('base64') },
+  }));
 
-  const prompt = buildVideoPrompt(1, 0, diffResult.stats);
+  const prompt = buildVideoPrompt(selected.length, 0, diffResult.stats);
 
   try {
     const response = await client.messages.create({
       model: VISION_MODEL,
-      max_tokens: 256,
+      max_tokens: 512,
       system: 'You are a media analyst detecting AI-generated video. Be direct and confident. Keep signals short and plain — no jargon.',
       messages: [
         {
@@ -324,7 +325,7 @@ export async function analyzeVideoFrames(
     const text = response.content.find(b => b.type === 'text')?.text ?? '';
     const result = parseVisionResponse(text);
     if (result) {
-      console.log(`[vision] Video analysis: ${result.aiProbability}% AI probability (1 frame + diff stats)`);
+      console.log(`[vision] Video analysis: ${result.aiProbability}% AI probability (${selected.length} frames + diff stats)`);
     }
     return result;
   } catch (err) {
