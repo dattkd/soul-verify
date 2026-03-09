@@ -209,17 +209,40 @@ async function tryYtDlp(url: string): Promise<DownloadResult | null> {
  *   COBALT_API_KEY  — required for api.cobalt.tools (get at cobalt.tools)
  *   COBALT_API_URL  — optional override (default: https://api.cobalt.tools/)
  */
+/**
+ * Strip tracking/share query params from social URLs.
+ * Cobalt and yt-dlp can fail on params like ?igsh=, ?utm_*, ?s=, etc.
+ */
+function cleanSocialUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    // Instagram: igsh, igshid, utm_*
+    // TikTok: _r, _d, share_app_id, etc.
+    // Twitter/X: s=, t=
+    const JUNK_PARAMS = ['igsh', 'igshid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', '_r', '_d', 'share_app_id', 'share_link_id'];
+    JUNK_PARAMS.forEach(p => u.searchParams.delete(p));
+    // If no params left, strip the ? entirely
+    const clean = u.toString();
+    if (clean !== url) console.log(`[socialDownload] Cleaned URL: ${url} → ${clean}`);
+    return clean;
+  } catch {
+    return url;
+  }
+}
+
 export async function downloadSocialMedia(url: string): Promise<DownloadResult | null> {
+  const cleanUrl = cleanSocialUrl(url);
+
   // 1. Try Cobalt — much more reliable for Instagram/TikTok/Twitter
-  const cobaltResult = await tryCobalt(url);
+  const cobaltResult = await tryCobalt(cleanUrl);
   if (cobaltResult) return cobaltResult;
 
   console.log('[socialDownload] Cobalt failed, trying yt-dlp fallback...');
 
-  // 2. Fall back to yt-dlp
-  const ytdlpResult = await tryYtDlp(url);
+  // 2. Fall back to yt-dlp (if installed — not available on Railway)
+  const ytdlpResult = await tryYtDlp(cleanUrl);
   if (ytdlpResult) return ytdlpResult;
 
-  console.error('[socialDownload] All download strategies failed for', url);
+  console.error('[socialDownload] All download strategies failed for', cleanUrl);
   return null;
 }

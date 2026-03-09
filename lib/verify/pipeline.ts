@@ -127,7 +127,7 @@ export async function runVerificationPipeline(input: PipelineInput): Promise<voi
           } else {
             await finishInsufficient(
               jobId,
-              'Could not download this Instagram post. Photo-only posts cannot be fetched automatically — download the image and upload it directly. Videos and Reels work via URL.',
+              'Could not download this Instagram content. Make sure the post is public, then try again. You can also download the file and upload it directly.',
             );
             return;
           }
