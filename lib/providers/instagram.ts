@@ -57,7 +57,7 @@ export class InstagramProvider implements ProviderAdapter {
             return {
               provider: 'instagram',
               externalEventId: `${entry.id}-${entry.time ?? Date.now()}`,
-              mentionHandle: '@soul',
+              mentionHandle: '@thesoulcompanyinc',
               authorHandle: entry.id ?? 'unknown', // we only get account ID here; username resolved on reply
               referencedPostId: commentId ?? mediaId,
               referencedMediaUrl: undefined, // fetched async by webhook handler
@@ -71,13 +71,13 @@ export class InstagramProvider implements ProviderAdapter {
 
           // ── comments field ───────────────────────────────────────────────
           // Fires on all comments on our media; filter for @soul mentions
-          if (change.field === 'comments' && val.text?.toLowerCase().includes('@soul')) {
+          if (change.field === 'comments' && val.text?.toLowerCase().includes('@thesoulcompanyinc')) {
             const commentId = val.id;
             const mediaId = val.media?.id;
             return {
               provider: 'instagram',
               externalEventId: commentId ?? `${entry.id}-${Date.now()}`,
-              mentionHandle: '@soul',
+              mentionHandle: '@thesoulcompanyinc',
               authorHandle: val.from?.username ?? val.from?.id ?? 'unknown',
               referencedPostId: commentId,
               referencedMediaUrl: undefined,
