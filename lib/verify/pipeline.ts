@@ -334,7 +334,7 @@ export async function runVerificationPipeline(input: PipelineInput): Promise<voi
       isVideo,
       durationMs: videoMeta?.durationMs ?? undefined,
       codec: videoMeta?.codec ?? undefined,
-      aiSuspicionScore: combinedAiScore > 0 ? combinedAiScore : undefined,
+      aiSuspicionScore: combinedAiScore,
     };
 
     const result = computeVerdict(scoringInput);

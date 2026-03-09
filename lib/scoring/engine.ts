@@ -40,7 +40,7 @@ export function computeVerdict(input: ScoringInput): ScoringOutput {
   // score = authenticity confidence (0–100)
   // Directly inverted from vision: 80% AI probability → 20 authenticity score
   // No vision → 50 (genuinely unknown)
-  const aiProb = input.aiSuspicionScore ?? 50;
+  const aiProb = input.aiSuspicionScore ?? 0;
   let score = 100 - aiProb;
 
   if (input.aiSuspicionScore !== undefined) {
