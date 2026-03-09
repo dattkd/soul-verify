@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model VerificationJob {
+  id                    String    @id @default(cuid())
+  inputType             String
+  sourceUrl             String?
+  canonicalUrl          String?
+  platform              String?
+  status                String    @default("queued")
+  errorMessage          String?
+  requestedByProvider   String?
+  requestedByHandle     String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  completedAt           DateTime?
+
+  assets          Asset[]
+  analysisResult  AnalysisResult?
+  evidenceSignals EvidenceSignal[]
+  publicReport    PublicReport?
+  platformEvents  PlatformEvent[]
+}
+
+model Asset {
+  id               String   @id @default(cuid())
+  jobId            String
+  originalFilename String?
+  mimeType         String?
+  sizeBytes        Int?
+  storageKey       String?
+  sha256           String?
+  perceptualHash   String?
+  width            Int?
+  height           Int?
+  durationMs       Int?
+  codec            String?
+  exifJson         Json?
+  metadataJson     Json?
+  createdAt        DateTime @default(now())
+
+  job              VerificationJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  derivedArtifacts DerivedArtifact[]
+  provenanceRecord ProvenanceRecord?
+}
+
+model DerivedArtifact {
+  id            String   @id @default(cuid())
+  assetId       String
+  type          String
+  storageKey    String?
+  sequenceIndex Int?
+  metadataJson  Json?
+  createdAt     DateTime @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+model AnalysisResult {
+  id          String   @id @default(cuid())
+  jobId       String   @unique
+  verdict     String
+  confidence  Int
+  explanation String
+  summaryJson Json?
+  createdAt   DateTime @default(now())
+
+  job VerificationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+model EvidenceSignal {
+  id          String   @id @default(cuid())
+  jobId       String
+  category    String
+  name        String
+  value       String
+  scoreImpact Int      @default(0)
+  detailsJson Json?
+  createdAt   DateTime @default(now())
+
+  job VerificationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+model PublicReport {
+  id          String   @id @default(cuid())
+  jobId       String   @unique
+  publicToken String   @unique @default(cuid())
+  slug        String?  @unique
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  job VerificationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+model PlatformEvent {
+  id              String    @id @default(cuid())
+  provider        String
+  eventType       String
+  rawPayload      Json
+  externalEventId String?
+  jobId           String?
+  processedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  job VerificationJob? @relation(fields: [jobId], references: [id])
+}
+
+model ProviderAccount {
+  id           String   @id @default(cuid())
+  provider     String
+  handle       String
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+
+  @@unique([provider, handle])
+}
+
+model ProvenanceRecord {
+  id            String   @id @default(cuid())
+  assetId       String   @unique
+  signatureType String?
+  signer        String?
+  status        String   @default("not_found")
+  detailsJson   Json?
+  createdAt     DateTime @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
