@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p ${PORT:-3000}",
     "lint": "eslint",
     "worker": "tsx watch worker/index.ts",
     "worker:prod": "tsx worker/index.ts",
