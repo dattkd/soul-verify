@@ -79,7 +79,7 @@ export class InstagramProvider implements ProviderAdapter {
               externalEventId: commentId ?? `${entry.id}-${Date.now()}`,
               mentionHandle: '@thesoulcompanyinc',
               authorHandle: val.from?.username ?? val.from?.id ?? 'unknown',
-              referencedPostId: commentId,
+              referencedPostId: mediaId ?? commentId,
               referencedMediaUrl: undefined,
               rawPayload: payload as Record<string, unknown>,
               timestamp: new Date(),
