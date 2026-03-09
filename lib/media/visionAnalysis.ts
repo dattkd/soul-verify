@@ -6,89 +6,136 @@ export interface VisionAnalysisResult {
   reasoning: string;
 }
 
-const VISION_MODEL = 'claude-haiku-4-5-20251001';
+const VISION_MODEL = 'claude-sonnet-4-6';
 
-const IMAGE_ANALYSIS_PROMPT = `You are a forensic digital media expert specialising in detecting AI-generated images. Be accurate — both false positives (calling real content AI) and false negatives (missing AI content) are harmful.
+const IMAGE_ANALYSIS_PROMPT = `You are a forensic digital media analyst specialising in detecting AI-generated images from 2024-2026 generators: Flux 1.1 Pro, Midjourney v6/v7, DALL-E 3, Stable Diffusion 3, Firefly 3, Ideogram v3, and similar.
 
-Examine this image carefully for AI generation artifacts from systems like Stable Diffusion, Midjourney, DALL-E, Firefly, Flux, or similar.
+CRITICAL CONTEXT: Modern AI generators are specifically engineered to defeat classic detectors. They produce near-photorealistic output. You must look for the NEW generation of subtle artifacts, not just old ones like melted hands.
 
-Signals to look for:
-- Skin & faces: waxy/plastic texture, over-smoothed pores, floating ears, teeth that are clearly AI-distorted
-- Hands & fingers: extra, missing, or melted fingers — a classic AI failure mode
-- Background: repetitive textures, edges that bleed into subjects, geometry that doesn't add up
-- Lighting: light sources that don't match shadows, impossible reflections
-- Text: garbled letters, words that half-exist, inconsistent font weights within the same sign
-- Camera authenticity: absence of any lens distortion or natural sensor noise throughout the whole image
-- Style inconsistency: parts of the image that look like different rendering styles
+FORENSIC SIGNALS — CHECK EACH CAREFULLY:
+
+SKIN & BIOLOGY (2026 generators still fail here):
+- Pore structure that is hyper-uniform or hyper-random — real skin has irregular micro-patterns that vary naturally by facial zone; AI skin tends to tile
+- Hair: individual strands that are too uniformly spaced or clump into bundles; AI struggles with strand-level complexity at scalp boundaries
+- Eyes: iris texture that looks "painted on"; catchlights that are geometrically perfect; eyelashes that are too evenly distributed
+- Neck-to-face boundary: skin tone transitions that are subtly wrong; AI often fails to match face and neck lighting perfectly
+
+HANDS (still the #1 AI failure in 2026):
+- Finger proportions wrong relative to palm — even subtle mismatches are significant
+- Knuckle detail that looks stamped or copy-pasted across fingers
+- Fingernail shape inconsistencies: too perfect OR wrong curvature
+
+BACKGROUND INTELLIGENCE:
+- AI populates backgrounds with contextually "too perfect" objects — scenes feel art-directed even in casual shots
+- Background text (signs, labels, screens): may look legible at a glance but contains subtle letter errors or wrong character spacing
+- Shadows from background objects that don't match the main subject's light source direction
+
+LIGHTING & PHYSICS:
+- Multiple shadows with different softness levels (impossible from single light source)
+- Glasses/eyes/shiny surfaces: reflections that don't match the visible environment
+- Fabric that looks rigid, poured, or follows impossible physics — AI struggles with cloth drape
+- "Studio quality" lighting on what should be a casual/spontaneous shot
+
+COMPOSITION FORENSICS:
+- Perfectly composed shots with rule-of-thirds or golden ratio framing — AI tends toward ideal composition
+- Subject perfectly in focus, background perfectly blurred — too optically perfect for the lens implied
+- No accidental foreground occlusion, no partially-cut objects at edges — AI avoids "mistakes"
+- The image feels "complete" and intentional even for supposedly candid content
+
+CAMERA & SENSOR AUTHENTICITY:
+- Absence of chromatic aberration at high-contrast edges (real lenses always have some)
+- No lens vignetting whatsoever
+- Color gamut feels wide/saturated — AI tends to boost saturation slightly versus real cameras
+- No sensor noise in shadow areas — real cameras always have grain in dark regions
+- No motion blur on fast-moving elements despite apparent motion
 
 Respond ONLY with valid JSON — no markdown, no code fences:
 {
   "aiGeneratedProbability": <integer 0-100>,
-  "signals": [<array of specific observations, max 6>],
-  "reasoning": "<2-3 sentence forensic conclusion>"
+  "signals": [<array of max 6 specific, precise observations>],
+  "reasoning": "<2-3 sentence forensic conclusion referencing specific evidence>"
 }
 
 Calibration:
-- 0-30: strong evidence of a real photograph (natural imperfections, organic composition, sensor noise)
-- 31-50: probably real but minor ambiguous features present
-- 51-74: ambiguous — some AI-like signals but not conclusive
-- 75-100: clear generative artifacts present — likely AI-generated`;
+- 0-25: strong evidence of real photograph — visible sensor noise, optical imperfections, organic micro-patterns
+- 26-50: probably real but contains ambiguous features worth noting
+- 51-64: more likely AI — multiple soft signals present across different categories
+- 65-100: likely or certainly AI-generated — clear generative artifacts identified`;
 
 /**
  * Build the video analysis prompt dynamically based on what frames we're sending.
  * frameCount = regular frames, diffCount = temporal difference frames.
+ * diffStats = per-diff mean and stddev of pixel values.
  */
-function buildVideoPrompt(frameCount: number, diffCount: number): string {
+function buildVideoPrompt(frameCount: number, diffCount: number, diffStats?: { mean: number; std: number }[]): string {
   const hasDiffs = diffCount > 0;
+  const statsText = diffStats && diffStats.length > 0
+    ? `\nTEMPORAL DIFF STATISTICS (computed before sending):\n${diffStats.map((s, i) => `  Diff ${i + 1}: mean pixel=${s.mean.toFixed(1)}, std=${s.std.toFixed(1)} — ${s.mean < 3 ? 'NEAR ZERO (suspicious — too clean for real sensor)' : s.mean > 20 ? 'HIGH ACTIVITY (motion or noise present)' : 'moderate activity'}`).join('\n')}\nReal camera sensor noise in static regions: mean ~4-12, std ~3-8. Mean <3 in static areas = unnaturally clean = AI indicator.\n`
+    : '';
 
-  return `You are a forensic digital media expert specialising in detecting AI-generated video.
+  return `You are an expert forensic analyst detecting AI-generated video from 2024-2026 generators: Sora (OpenAI), Kling 2.0 (Kuaishou), Runway Gen-3 Alpha, HunyuanVideo (Tencent), Wan2.1, Pika 2.2, Hailuo (MiniMax), and similar.
+
+CRITICAL: These generators are specifically designed to fool detectors. Surface realism is no longer a reliable signal. Focus on the forensic signals that current generators still cannot fake.
 
 You are examining ${frameCount} regular video frames${hasDiffs ? ` AND ${diffCount} TEMPORAL DIFFERENCE frames` : ''}.
-${hasDiffs ? `
-TEMPORAL DIFFERENCE FRAMES (sent after the regular frames): These show pixel-level changes between consecutive frames, amplified 8× for visibility.
-- REAL video: sensor noise creates scattered, organic-looking dots in static areas (walls, floors, background). Motion areas show natural blur edges.
-- AI video: static areas often have ZERO noise (completely black in diff = unnaturally perfect) OR structured/patterned noise (gradients, repeating patterns). Motion boundaries are too sharp or too smooth.
-Scrutinise the diff frames extremely carefully — this is the most reliable forensic signal.
+${statsText}${hasDiffs ? `
+TEMPORAL DIFFERENCE FRAMES — THE MOST RELIABLE SIGNAL:
+These show amplified pixel changes between consecutive frames. Study them with extreme care.
+- REAL camera footage: static backgrounds (walls, floors, sky) show scattered, organic, grain-like noise dots — this is sensor thermal noise and compression artifacts. It looks random and uniform.
+- AI video: static regions are often PERFECTLY CLEAN (near-black diff = mean <3) because AI generators render each frame independently without simulating sensor noise. OR static regions show STRUCTURED patterns: gradients, tiling, or correlated noise — signs of latent space interpolation.
+- Motion boundaries in real video: natural blur transitions. In AI video: too sharp or "floating" edges where the model struggles to interpolate motion.
 ` : ''}
-WHAT TO LOOK FOR across all regular frames:
 
-SUBJECT/ENVIRONMENT INTEGRATION:
-- Do humans look naturally embedded in the scene or slightly "pasted on"?
-- Does clothing move realistically or does it swim/warp between frames?
-- Hair: natural hair has complex strand movement — AI hair often flickers, looks plasticised, or streams unnaturally
+BIOLOGICAL MOTION — AI'S MOST PERSISTENT FAILURE:
+- BREATHING: real humans show subtle chest/shoulder movement every 3-5 seconds even in "still" shots. AI humans are unnaturally static when not explicitly animated.
+- MICRO-TREMORS: real people have imperceptible 2-8Hz hand/head tremors from muscle activity. AI humans are perfectly still.
+- EYE MOVEMENT: real eyes dart and refocus constantly; AI eyes may be too stable or blink at mechanically regular intervals.
+- WEIGHT & INERTIA: when real people shift weight, the motion has appropriate acceleration/deceleration. AI motion can look gliding or weightless.
 
-ENVIRONMENTAL SURFACES:
-- Concrete, metal, fabric: AI produces over-smooth or repetitively-patterned textures
-- Floor/wall continuity — does the surface texture stay consistent or subtly shift?
+GENERATOR-SPECIFIC SIGNATURES (2025-2026):
+- SORA: cinematic perfection — lighting too good, camera movement too smooth for amateur footage, "dream-like" physics, subjects look too polished for the supposed context
+- KLING 2.0: excellent human motion overall but subtle face texture inconsistencies during rapid movement; characteristic smooth background blur
+- RUNWAY GEN-3: slightly washed-out color palette, characteristic soft bokeh that looks painted, good temporal consistency but subtle "shimmer" at edges
+- HUNYUANVIDEO: strong temporal consistency but specific texture compression artifacts in fast-moving hair/fabric
+- PIKA: characteristic "floating" subjects that don't feel fully grounded in the scene
+- HAILUO: very good for short clips, but specific motion physics issues with object interactions
 
-MOTION PHYSICS:
-- Falling, running, collapsing bodies: does the weight distribution and acceleration look physically correct?
-- Small objects (debris, fabric edges): real motion has micro-details; AI motion is often too smooth or has "swimming" artefacts
+PHYSICS & MATERIAL BEHAVIOR:
+- Cloth and hair: real fabric/hair has complex fluid dynamics across frames. AI cloth often looks rigid between frames or "poured" rather than draped.
+- Liquids and smoke: AI struggles with splashing, smoke dissipation, and flame flicker — often looks looped or too smooth.
+- Gravity: falling objects, collapsing structures, bouncing items — real physics has specific acceleration curves; AI often linearizes these.
+- Rigid body interactions: when objects touch or collide, AI often has penetration artifacts or "snapping" rather than natural contact.
 
-CAMERA BEHAVIOUR:
-- Real phone footage: organic, slightly imperfect shake, authentic motion blur
-- AI "found footage": can look too stable OR has artificial shake that doesn't correlate with the scene
+CAMERA BEHAVIOR:
+- Real handheld footage: organic micro-shake that CORRELATES with the scene action (person moves → camera reacts slightly)
+- AI "found footage": shake that doesn't correlate with scene; OR unnaturally stable despite supposed handheld capture
+- Real cameras: lens breathing, slight focus shifts, chromatic aberration
+- AI video: often has "infinite depth of field" effect or unnaturally perfect focus tracking
 
-IMPORTANT — HIGH-QUALITY AI CONTENT:
-Modern AI video generators (Sora, Runway Gen-3, Kling 2.0) are specifically trained to produce content that looks like authentic phone/security footage. Focus on:
-1. The temporal difference frames (static region noise patterns)
-2. Fine surface texture consistency across ALL frames
-3. Whether human motion follows realistic biomechanics
+SUBJECT-ENVIRONMENT INTEGRATION:
+- Do humans cast shadows that match all light sources, including fill lights and ambient light?
+- Do reflective surfaces (floors, glasses, eyes) show accurate reflections that update as subjects move?
+- Hair boundary with background: real hair has complex edge detail; AI hair often has a subtle "matte" or halo effect
 
-When uncertain, score in the 51-74 range — do not assume AI without clear evidence.
+SOCIAL MEDIA / VIRAL CONTENT CONTEXT:
+Much AI content is designed to look like viral phone footage. Specific signals:
+- "Too perfect" framing for supposedly spontaneous events
+- Absence of bystanders, witnesses, or the visual chaos of real events
+- Event timing that's too perfectly captured — real events are messy; AI events are cinematically composed
+- Lighting that is inconsistent with the claimed time/location
 
 Respond ONLY with valid JSON — no markdown, no code fences:
 {
   "aiGeneratedProbability": <integer 0-100>,
-  "signals": [<array of specific observations, max 6>],
-  "reasoning": "<2-3 sentence forensic conclusion>"
+  "signals": [<array of max 6 specific observations with precise visual evidence>],
+  "reasoning": "<2-3 sentence forensic conclusion naming specific signals observed>"
 }
 
 Calibration:
-- 0-30: strong evidence of real recorded footage (organic sensor noise in diffs, natural motion physics)
-- 31-50: probably real but some ambiguous features
-- 51-74: ambiguous — some AI-like signals but not conclusive
-- 75-100: clear AI artifacts — structured diff noise, biomechanics failures, or texture inconsistencies`;
+- 0-25: strong evidence of real footage — organic temporal noise, natural biological motion, physics-consistent motion
+- 26-50: probably real but some ambiguous features
+- 51-64: ambiguous — multiple soft signals, cannot rule out AI
+- 65-100: likely AI — clear evidence from temporal analysis, biological motion failure, or generator-specific artifacts`;
 }
 
 function getClient(): Anthropic | null {
@@ -117,21 +164,26 @@ function parseVisionResponse(text: string): VisionAnalysisResult | null {
   }
 }
 
+interface DiffResult {
+  images: Buffer[];
+  stats: { mean: number; std: number }[];
+}
+
 /**
- * Compute frame-to-frame pixel difference images, amplified 8× for visibility.
- * Used to reveal temporal noise patterns that distinguish real vs AI video.
- * Real cameras: organic scattered sensor noise in static regions.
- * AI video: zero noise (perfectly black diffs) or structured/patterned noise.
+ * Compute frame-to-frame pixel difference images + statistics.
+ * Stats (mean/std of raw diff values before amplification) are fed to Claude as text context.
+ * Real cameras: mean ~4-12 in static regions (thermal + shot noise).
+ * AI video: mean <3 (unnaturally clean) or structured patterns.
  */
-async function computeTemporalDiffs(frames: Buffer[]): Promise<Buffer[]> {
-  if (frames.length < 2) return [];
+async function computeTemporalDiffs(frames: Buffer[]): Promise<DiffResult> {
+  if (frames.length < 2) return { images: [], stats: [] };
   try {
     const sharp = (await import('sharp')).default;
-    const diffs: Buffer[] = [];
-    const TARGET_W = 360;
-    const TARGET_H = 640;
+    const images: Buffer[] = [];
+    const stats: { mean: number; std: number }[] = [];
+    const TARGET_W = 480;
+    const TARGET_H = 854;
 
-    // Pre-resize all frames to a standard size for pixel comparison
     const resized = await Promise.all(
       frames.map(f =>
         sharp(f)
@@ -145,23 +197,31 @@ async function computeTemporalDiffs(frames: Buffer[]): Promise<Buffer[]> {
     for (let i = 1; i < resized.length; i++) {
       const { data: d1 } = resized[i - 1];
       const { data: d2, info } = resized[i];
+      const rawDiffs: number[] = [];
       const diffData = Buffer.alloc(d1.length);
+
       for (let j = 0; j < d1.length; j++) {
-        // Amplify difference 8× — makes subtle noise visible
-        diffData[j] = Math.min(255, Math.abs(d1[j] - d2[j]) * 8);
+        const raw = Math.abs(d1[j] - d2[j]);
+        rawDiffs.push(raw);
+        diffData[j] = Math.min(255, raw * 8);
       }
+
+      // Compute mean and std of raw (unamplified) diff values
+      const mean = rawDiffs.reduce((a, b) => a + b, 0) / rawDiffs.length;
+      const variance = rawDiffs.reduce((a, b) => a + (b - mean) ** 2, 0) / rawDiffs.length;
+      stats.push({ mean: Math.round(mean * 10) / 10, std: Math.round(Math.sqrt(variance) * 10) / 10 });
+
       const diffImg = await sharp(diffData, {
         raw: { width: info.width, height: info.height, channels: info.channels },
       })
         .jpeg({ quality: 90 })
         .toBuffer();
-      diffs.push(diffImg);
+      images.push(diffImg);
     }
 
-    return diffs;
+    return { images, stats };
   } catch {
-    // sharp not available — skip temporal diff
-    return [];
+    return { images: [], stats: [] };
   }
 }
 
@@ -231,29 +291,28 @@ export async function analyzeVideoFrames(
 
   const selected = frames.slice(0, 3);
 
-  // Compute temporal difference frames — this is the key forensic technique
-  const diffFrames = await computeTemporalDiffs(selected);
-  console.log(`[vision] Computed ${diffFrames.length} temporal diff frames`);
+  // Compute temporal difference frames with statistics
+  const diffResult = await computeTemporalDiffs(selected);
+  console.log(`[vision] Computed ${diffResult.images.length} temporal diff frames, stats: ${JSON.stringify(diffResult.stats)}`);
 
-  // Build content: regular frames first, then diff frames
   const imageBlocks: Anthropic.ImageBlockParam[] = [
     ...selected.map(f => ({
       type: 'image' as const,
       source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: f.toString('base64') },
     })),
-    ...diffFrames.map(f => ({
+    ...diffResult.images.map(f => ({
       type: 'image' as const,
       source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: f.toString('base64') },
     })),
   ];
 
-  const prompt = buildVideoPrompt(selected.length, diffFrames.length);
+  const prompt = buildVideoPrompt(selected.length, diffResult.images.length, diffResult.stats);
 
   try {
     const response = await client.messages.create({
       model: VISION_MODEL,
-      max_tokens: 768,
-      system: 'You are a forensic media analyst specialising in AI-generated video detection. The temporal difference frames are the most important forensic signal — examine them carefully. AI video often has unnaturally smooth or structured noise in static regions. Only flag as AI-generated when you see clear evidence, not just ambiguous signals.',
+      max_tokens: 1024,
+      system: 'You are an expert forensic media analyst with deep knowledge of AI video generation systems used in 2024-2026. You have studied thousands of examples from Sora, Kling, Runway, HunyuanVideo and other generators. The temporal difference statistics and frames are your primary forensic tool. Be precise and specific in your observations.',
       messages: [
         {
           role: 'user',
@@ -268,7 +327,7 @@ export async function analyzeVideoFrames(
     const text = response.content.find(b => b.type === 'text')?.text ?? '';
     const result = parseVisionResponse(text);
     if (result) {
-      console.log(`[vision] Video analysis: ${result.aiProbability}% AI probability (${selected.length} frames + ${diffFrames.length} diffs)`);
+      console.log(`[vision] Video analysis: ${result.aiProbability}% AI probability (${selected.length} frames + ${diffResult.images.length} diffs)`);
     }
     return result;
   } catch (err) {

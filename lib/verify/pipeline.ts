@@ -218,8 +218,15 @@ export async function runVerificationPipeline(input: PipelineInput): Promise<voi
       ? (sightengineVideoResult?.aiProbability ?? 0)
       : (sightengineImageScore ?? 0);
 
-    const combinedAiScore = Math.max(heuristicScore, visionScore, hiveScore, sightengineScore);
-    console.log(`[pipeline] SE: ${sightengineScore}% | Hive: ${hiveScore}% | Claude: ${visionScore}% | Heuristic: ${heuristicScore}% → combined: ${combinedAiScore}%`);
+    // Ensemble scoring: max gives any strong detector power to flag AI content.
+    // Consensus boost: if 2+ independent detectors score ≥50, add up to +12 pts
+    // (multiple independent sources agreeing increases confidence in the verdict).
+    const detectorScores = [visionScore, hiveScore, sightengineScore];
+    const maxDetectorScore = Math.max(...detectorScores, heuristicScore);
+    const agreeingDetectors = detectorScores.filter(s => s >= 50).length;
+    const consensusBoost = agreeingDetectors >= 3 ? 12 : agreeingDetectors >= 2 ? 6 : 0;
+    const combinedAiScore = Math.min(100, maxDetectorScore + consensusBoost);
+    console.log(`[pipeline] SE: ${sightengineScore}% | Hive: ${hiveScore}% | Vision: ${visionScore}% | Heuristic: ${heuristicScore}% | consensus+${consensusBoost} → combined: ${combinedAiScore}%`);
 
     const provenance = await checkProvenance(buffer, mimeType);
     const existingByHash = await prisma.asset.findFirst({ where: { sha256: fileHash } });
