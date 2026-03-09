@@ -17,6 +17,19 @@ interface HiveDetails {
   allSources?: Record<string, number>;
 }
 
+interface AiOrNotImageDetails {
+  isDeepfake?: boolean;
+  detectedGenerator?: string | null;
+  generatorConfidence?: number;
+}
+
+interface AiOrNotVideoDetails {
+  aiVideoProbability?: number;
+  aiVoiceProbability?: number;
+  isDeepfake?: boolean;
+  deepfakeConfidence?: number;
+}
+
 export default async function ReportPage({ params }: ReportPageProps) {
   const { token } = await params;
 
@@ -51,10 +64,14 @@ export default async function ReportPage({ params }: ReportPageProps) {
   const seSignal = job.evidenceSignals.find(s => s.name === 'sightengine_ai_probability');
   const seProb = seSignal ? Number(seSignal.value) : null;
 
-  const aiProb = Math.max(hiveProb ?? 0, seProb ?? 0, visionProb ?? 0) || null;
+  const aiOrNotSignal = job.evidenceSignals.find(s => s.name === 'aiornot_ai_probability');
+  const aiOrNotProb = aiOrNotSignal ? Number(aiOrNotSignal.value) : null;
+  const aiOrNotDetails = aiOrNotSignal?.detailsJson as (AiOrNotImageDetails & AiOrNotVideoDetails) | null;
+
+  const aiProb = Math.max(hiveProb ?? 0, seProb ?? 0, visionProb ?? 0, aiOrNotProb ?? 0) || null;
 
   const tableSignals = job.evidenceSignals.filter(
-    s => !['vision_ai_probability', 'hive_ai_probability', 'sightengine_ai_probability', 'ai_probability'].includes(s.name),
+    s => !['vision_ai_probability', 'hive_ai_probability', 'sightengine_ai_probability', 'ai_probability', 'aiornot_ai_probability'].includes(s.name),
   );
 
   const sourceHostname = (() => {
@@ -162,7 +179,40 @@ export default async function ReportPage({ params }: ReportPageProps) {
                     </div>
                   )}
 
-                  {/* Pattern Detection (was Hive) */}
+                  {/* Trained Detector (AI or Not) — primary accuracy engine */}
+                  {aiOrNotProb !== null && (
+                    <div className="pt-6 border-t border-white/[0.04]">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-mono text-zinc-500 tracking-[0.15em] uppercase">Trained Detector</span>
+                        <span className="font-mono text-sm font-bold tabular-nums" style={{ color: aiOrNotProb >= 65 ? '#f87171' : aiOrNotProb >= 35 ? '#facc15' : '#4ade80' }}>
+                          {aiOrNotProb}%
+                        </span>
+                      </div>
+                      {aiOrNotDetails?.detectedGenerator && (
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-xs font-mono text-zinc-600">Generator identified:</span>
+                          <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-full border border-purple-500/30 text-purple-300 bg-purple-500/10">
+                            {aiOrNotDetails.detectedGenerator}
+                            {aiOrNotDetails.generatorConfidence ? ` · ${aiOrNotDetails.generatorConfidence}%` : ''}
+                          </span>
+                        </div>
+                      )}
+                      {(aiOrNotDetails?.isDeepfake || aiOrNotDetails?.deepfakeConfidence) && (
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-full border border-red-500/30 text-red-300 bg-red-500/10">
+                            Deepfake detected{aiOrNotDetails.deepfakeConfidence ? ` · ${aiOrNotDetails.deepfakeConfidence}%` : ''}
+                          </span>
+                        </div>
+                      )}
+                      {aiOrNotDetails?.aiVoiceProbability !== undefined && aiOrNotDetails.aiVoiceProbability > 20 && (
+                        <p className="text-xs font-mono text-zinc-600 mt-1.5">
+                          AI voice: <span className="text-zinc-400">{aiOrNotDetails.aiVoiceProbability}%</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Pattern Detection (Hive) */}
                   {hiveProb !== null && (
                     <div className="pt-6 border-t border-white/[0.04]">
                       <div className="flex items-center justify-between mb-1.5">

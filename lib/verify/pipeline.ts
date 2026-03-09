@@ -7,6 +7,7 @@ import { detectAiImage, detectAiVideo } from '../media/aiDetection';
 import { analyzeImageContent, analyzeVideoFrames } from '../media/visionAnalysis';
 import { detectImageWithHive, detectVideoFramesWithHive } from '../media/hiveDetection';
 import { detectVideoWithSightengine, detectImageWithSightengine } from '../media/sightengineDetection';
+import { detectImageWithAiOrNot, detectVideoWithAiOrNot } from '../media/aiornot';
 import { downloadSocialMedia } from '../media/socialDownload';
 import { computeVerdict } from '../scoring/engine';
 import { checkProvenance } from '../provenance';
@@ -198,17 +199,17 @@ export async function runVerificationPipeline(input: PipelineInput): Promise<voi
         ? detectAiVideo(videoMeta, buffer.length)
         : null;
 
-    // Run all detectors in parallel:
-    // - Images: Hive (pixel fingerprinting) + Sightengine + Claude vision
-    // - Video:  Sightengine (raw video file — most accurate) + Claude (temporal diffs)
-    //   Hive image model is NOT used on video frames — re-encoding destroys its fingerprints.
-    const [visionResult, hiveResult, sightengineVideoResult, sightengineImageScore] = await Promise.all([
+    // Run all detectors in parallel — AI or Not is the primary trained detector,
+    // Claude vision adds reasoning + temporal diff forensics, Sightengine/Hive fill gaps.
+    const [visionResult, hiveResult, sightengineVideoResult, sightengineImageScore, aiOrNotImageResult, aiOrNotVideoResult] = await Promise.all([
       isImage
         ? analyzeImageContent(buffer, mimeType)
         : (isVideo && extractedFrames.length > 0 ? analyzeVideoFrames(extractedFrames) : Promise.resolve(null)),
       isImage ? detectImageWithHive(buffer, mimeType) : Promise.resolve(null),
       isVideo ? detectVideoWithSightengine(buffer, input.originalFilename ?? 'media.mp4') : Promise.resolve(null),
       isImage ? detectImageWithSightengine(buffer, mimeType) : Promise.resolve(null),
+      isImage ? detectImageWithAiOrNot(buffer, mimeType) : Promise.resolve(null),
+      isVideo ? detectVideoWithAiOrNot(buffer, input.originalFilename ?? 'media.mp4') : Promise.resolve(null),
     ]);
 
     const heuristicScore = aiDetection?.suspicionScore ?? 0;
@@ -217,16 +218,19 @@ export async function runVerificationPipeline(input: PipelineInput): Promise<voi
     const sightengineScore = isVideo
       ? (sightengineVideoResult?.aiProbability ?? 0)
       : (sightengineImageScore ?? 0);
+    // AI or Not: primary trained detector — use video score OR image score
+    const aiOrNotScore = isVideo
+      ? (aiOrNotVideoResult?.aiVideoProbability ?? 0)
+      : (aiOrNotImageResult?.aiProbability ?? 0);
 
-    // Ensemble scoring: max gives any strong detector power to flag AI content.
-    // Consensus boost: if 2+ independent detectors score ≥50, add up to +12 pts
-    // (multiple independent sources agreeing increases confidence in the verdict).
-    const detectorScores = [visionScore, hiveScore, sightengineScore];
+    // Ensemble: max from all detectors (any strong signal wins),
+    // plus consensus boost when multiple independent detectors agree.
+    const detectorScores = [visionScore, hiveScore, sightengineScore, aiOrNotScore];
     const maxDetectorScore = Math.max(...detectorScores, heuristicScore);
     const agreeingDetectors = detectorScores.filter(s => s >= 50).length;
     const consensusBoost = agreeingDetectors >= 3 ? 12 : agreeingDetectors >= 2 ? 6 : 0;
     const combinedAiScore = Math.min(100, maxDetectorScore + consensusBoost);
-    console.log(`[pipeline] SE: ${sightengineScore}% | Hive: ${hiveScore}% | Vision: ${visionScore}% | Heuristic: ${heuristicScore}% | consensus+${consensusBoost} → combined: ${combinedAiScore}%`);
+    console.log(`[pipeline] AiOrNot: ${aiOrNotScore}% | SE: ${sightengineScore}% | Hive: ${hiveScore}% | Vision: ${visionScore}% | Heuristic: ${heuristicScore}% | consensus+${consensusBoost} → combined: ${combinedAiScore}%`);
 
     const provenance = await checkProvenance(buffer, mimeType);
     const existingByHash = await prisma.asset.findFirst({ where: { sha256: fileHash } });
@@ -272,6 +276,9 @@ export async function runVerificationPipeline(input: PipelineInput): Promise<voi
           hiveAiScore: hiveScore > 0 ? hiveScore : null,
           hiveTopSource: hiveResult?.topSource ?? null,
           sightengineScore: sightengineScore > 0 ? sightengineScore : null,
+          aiOrNotScore: aiOrNotScore > 0 ? aiOrNotScore : null,
+          aiOrNotGenerator: aiOrNotImageResult?.detectedGenerator ?? null,
+          aiOrNotDeepfake: aiOrNotImageResult?.isDeepfake || aiOrNotVideoResult?.isDeepfake || null,
         },
       },
     });
@@ -434,6 +441,40 @@ export async function runVerificationPipeline(input: PipelineInput): Promise<voi
           detailsJson: {
             topSource: hiveResult.topSource,
             allSources: hiveResult.allSources,
+          } as object,
+        },
+      });
+    }
+
+    // Store AI or Not detection results
+    if (aiOrNotImageResult) {
+      await prisma.evidenceSignal.create({
+        data: {
+          jobId,
+          category: 'content',
+          name: 'aiornot_ai_probability',
+          value: `${aiOrNotImageResult.aiProbability}`,
+          scoreImpact: 0,
+          detailsJson: {
+            isDeepfake: aiOrNotImageResult.isDeepfake,
+            detectedGenerator: aiOrNotImageResult.detectedGenerator,
+            generatorConfidence: aiOrNotImageResult.generatorConfidence,
+          } as object,
+        },
+      });
+    } else if (aiOrNotVideoResult) {
+      await prisma.evidenceSignal.create({
+        data: {
+          jobId,
+          category: 'content',
+          name: 'aiornot_ai_probability',
+          value: `${aiOrNotVideoResult.aiVideoProbability}`,
+          scoreImpact: 0,
+          detailsJson: {
+            aiVideoProbability: aiOrNotVideoResult.aiVideoProbability,
+            aiVoiceProbability: aiOrNotVideoResult.aiVoiceProbability,
+            isDeepfake: aiOrNotVideoResult.isDeepfake,
+            deepfakeConfidence: aiOrNotVideoResult.deepfakeConfidence,
           } as object,
         },
       });
