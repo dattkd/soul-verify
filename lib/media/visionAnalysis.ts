@@ -6,7 +6,7 @@ export interface VisionAnalysisResult {
   reasoning: string;
 }
 
-const VISION_MODEL = 'claude-sonnet-4-6';
+const VISION_MODEL = 'claude-haiku-4-5-20251001';
 
 const IMAGE_ANALYSIS_PROMPT = `You are a forensic digital media analyst specialising in detecting AI-generated images from 2024-2026 generators: Flux 1.1 Pro, Midjourney v6/v7, DALL-E 3, Stable Diffusion 3, Firefly 3, Ideogram v3, and similar.
 
@@ -289,24 +289,21 @@ export async function analyzeVideoFrames(
   const client = getClient();
   if (!client || frames.length === 0) return null;
 
-  const selected = frames.slice(0, 3);
+  // Use only the middle frame — enough for visual analysis, much faster than sending 3+
+  const middleFrame = frames[Math.floor(frames.length / 2)];
 
-  // Compute temporal difference frames with statistics
-  const diffResult = await computeTemporalDiffs(selected);
-  console.log(`[vision] Computed ${diffResult.images.length} temporal diff frames, stats: ${JSON.stringify(diffResult.stats)}`);
+  // Compute diff stats as text only — no need to send diff images to Claude
+  const diffResult = await computeTemporalDiffs(frames.slice(0, 3));
+  console.log(`[vision] Diff stats: ${JSON.stringify(diffResult.stats)}`);
 
   const imageBlocks: Anthropic.ImageBlockParam[] = [
-    ...selected.map(f => ({
+    {
       type: 'image' as const,
-      source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: f.toString('base64') },
-    })),
-    ...diffResult.images.map(f => ({
-      type: 'image' as const,
-      source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: f.toString('base64') },
-    })),
+      source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: middleFrame.toString('base64') },
+    },
   ];
 
-  const prompt = buildVideoPrompt(selected.length, diffResult.images.length, diffResult.stats);
+  const prompt = buildVideoPrompt(1, 0, diffResult.stats);
 
   try {
     const response = await client.messages.create({
@@ -327,7 +324,7 @@ export async function analyzeVideoFrames(
     const text = response.content.find(b => b.type === 'text')?.text ?? '';
     const result = parseVisionResponse(text);
     if (result) {
-      console.log(`[vision] Video analysis: ${result.aiProbability}% AI probability (${selected.length} frames + ${diffResult.images.length} diffs)`);
+      console.log(`[vision] Video analysis: ${result.aiProbability}% AI probability (1 frame + diff stats)`);
     }
     return result;
   } catch (err) {
