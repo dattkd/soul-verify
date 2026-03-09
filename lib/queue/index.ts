@@ -33,8 +33,7 @@ export function getQueue(): Queue<VerificationJobData> {
     _queue = new Queue<VerificationJobData>(QUEUE_NAME, {
       connection: createRedisConnection(),
       defaultJobOptions: {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 2000 },
+        attempts: 1,          // No retries — bad URLs should fail once, not clog the queue
         removeOnComplete: 100,
         removeOnFail: 50,
       },

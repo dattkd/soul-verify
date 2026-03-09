@@ -22,14 +22,20 @@ const worker = new Worker<VerificationJobData>(
       buffer = await storage.get(job.data.storageKey);
     }
 
-    // Run the verification pipeline
-    await runVerificationPipeline({
-      jobId,
-      buffer,
-      sourceUrl: job.data.sourceUrl,
-      mimeType: job.data.mimeType,
-      originalFilename: job.data.originalFilename,
-    });
+    // Run the verification pipeline with a hard 3-minute timeout
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Pipeline timeout after 3 minutes')), 180_000),
+    );
+    await Promise.race([
+      runVerificationPipeline({
+        jobId,
+        buffer,
+        sourceUrl: job.data.sourceUrl,
+        mimeType: job.data.mimeType,
+        originalFilename: job.data.originalFilename,
+      }),
+      timeout,
+    ]);
 
     // ── Bot reply (if job came from a provider mention) ───────────────────
     if (job.data.requestedByProvider) {
@@ -38,7 +44,12 @@ const worker = new Worker<VerificationJobData>(
 
     console.log(`[worker] Completed job ${jobId}`);
   },
-  { connection: createRedisConnection(), concurrency: 3 },
+  {
+    connection: createRedisConnection(),
+    concurrency: 3,
+    lockDuration: 300_000,    // 5 min — prevents stall detection on slow jobs
+    lockRenewTime: 60_000,    // Renew lock every 60s
+  },
 );
 
 async function sendBotReply(jobData: VerificationJobData): Promise<void> {
