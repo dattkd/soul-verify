@@ -118,7 +118,7 @@ export async function runVerificationPipeline(input: PipelineInput): Promise<voi
           // Update the originalFilename hint so the pipeline picks the right extension
           if (!input.originalFilename) input.originalFilename = downloaded.filename;
         } else if (platform === 'instagram') {
-          // yt-dlp failed — try oEmbed thumbnail as last resort
+          // Download failed — try oEmbed thumbnail as last resort (works for photo posts)
           const thumb = await fetchInstagramThumbnail(input.sourceUrl);
           if (thumb) {
             buffer = thumb.buffer;

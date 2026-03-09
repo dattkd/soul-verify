@@ -71,7 +71,8 @@ export default async function ReportPage({ params }: ReportPageProps) {
   const aiProb = Math.max(hiveProb ?? 0, seProb ?? 0, visionProb ?? 0, aiOrNotProb ?? 0) || null;
 
   const tableSignals = job.evidenceSignals.filter(
-    s => !['vision_ai_probability', 'hive_ai_probability', 'sightengine_ai_probability', 'ai_probability', 'aiornot_ai_probability'].includes(s.name),
+    s => !['vision_ai_probability', 'hive_ai_probability', 'sightengine_ai_probability', 'ai_probability', 'aiornot_ai_probability'].includes(s.name)
+      && (s.scoreImpact !== 0 || ['seen_before', 'near_duplicate', 'software_tag'].includes(s.name)),
   );
 
   const sourceHostname = (() => {
@@ -236,7 +237,7 @@ export default async function ReportPage({ params }: ReportPageProps) {
             {/* Evidence signals */}
             {tableSignals.length > 0 && (
               <div className="border border-white/[0.06] rounded-xl p-6 md:p-8">
-                <h2 className="text-xs font-mono text-zinc-500 tracking-[0.2em] uppercase mb-5">Evidence Signals</h2>
+                <h2 className="text-xs font-mono text-zinc-500 tracking-[0.2em] uppercase mb-4">Additional Signals</h2>
                 <EvidenceTable signals={tableSignals as Parameters<typeof EvidenceTable>[0]['signals']} />
               </div>
             )}

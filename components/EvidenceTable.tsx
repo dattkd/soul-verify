@@ -11,37 +11,52 @@ interface Props {
   signals: Signal[];
 }
 
-function impactColor(impact: number): string {
-  if (impact > 0) return 'text-green-400';
-  if (impact < 0) return 'text-red-400';
-  return 'text-zinc-500';
+const SIGNAL_LABELS: Record<string, string> = {
+  exif_present: 'Original camera metadata intact',
+  exif_stripped: 'Camera metadata stripped',
+  near_duplicate: 'Similar content previously seen',
+  seen_before: 'Exact content seen before',
+  software_tag: 'Software tag in metadata',
+  short_duration: 'Unusually short clip',
+  exact_duration: 'Suspiciously exact duration',
+  small_file: 'Unusually small file size',
+  no_audio: 'No audio track',
+  low_resolution: 'Low resolution for claimed source',
+};
+
+function formatValue(name: string, value: string): string {
+  if (value.startsWith('weight:')) return '';
+  if (name === 'exif_present') return 'Yes';
+  if (name === 'exif_stripped') return 'Yes';
+  if (name === 'seen_before') return 'Duplicate';
+  if (name === 'near_duplicate') return 'Near match';
+  return value;
 }
 
 export function EvidenceTable({ signals }: Props) {
+  if (signals.length === 0) return null;
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm font-mono">
-        <thead>
-          <tr className="border-b border-zinc-800 text-zinc-500 text-xs uppercase tracking-widest">
-            <th className="text-left py-2 pr-4">Category</th>
-            <th className="text-left py-2 pr-4">Signal</th>
-            <th className="text-left py-2 pr-4">Value</th>
-            <th className="text-right py-2">Impact</th>
-          </tr>
-        </thead>
-        <tbody>
-          {signals.map(sig => (
-            <tr key={sig.id} className="border-b border-zinc-900 hover:bg-zinc-900/50 transition-colors">
-              <td className="py-2 pr-4 text-zinc-500 uppercase text-xs tracking-wider">{sig.category}</td>
-              <td className="py-2 pr-4 text-zinc-300">{sig.name.replace(/_/g, ' ')}</td>
-              <td className="py-2 pr-4 text-zinc-400 max-w-xs truncate">{sig.value}</td>
-              <td className={`py-2 text-right ${impactColor(sig.scoreImpact)}`}>
-                {sig.scoreImpact > 0 ? '+' : ''}{sig.scoreImpact}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-2">
+      {signals.map(sig => {
+        const label = SIGNAL_LABELS[sig.name] ?? sig.name.replace(/_/g, ' ');
+        const value = formatValue(sig.name, sig.value);
+        const impact = sig.scoreImpact;
+
+        return (
+          <div key={sig.id} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0">
+            <span className="text-sm text-zinc-300">{label}</span>
+            <div className="flex items-center gap-3">
+              {value && <span className="text-xs font-mono text-zinc-500">{value}</span>}
+              {impact !== 0 && (
+                <span className={`text-xs font-mono font-medium ${impact > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {impact > 0 ? '+' : ''}{impact}
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
