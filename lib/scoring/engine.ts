@@ -101,16 +101,16 @@ export function computeVerdict(input: ScoringInput): ScoringOutput {
 
   // ── VERDICT ───────────────────────────────────────────────────────────────
   // Primary axis: is this AI-generated or authentic?
-  // Vision AI probability ≥ 55% → LIKELY_AI_GENERATED
-  // Authenticity score ≥ 65 → LIKELY_ORIGINAL
+  // Vision AI probability ≥ 75% → LIKELY_AI_GENERATED (high confidence required)
+  // Authenticity score ≥ 60 → LIKELY_ORIGINAL
   // Otherwise → INSUFFICIENT_EVIDENCE (honest about uncertainty)
 
   let verdict: Verdict;
-  if (aiProb >= 55) {
+  if (aiProb >= 75) {
     verdict = Verdict.LIKELY_AI_GENERATED;
   } else if (isEditingSoftware && input.nearDuplicateFound) {
     verdict = Verdict.MANIPULATED_OR_EDITED;
-  } else if (score >= 65) {
+  } else if (score >= 60) {
     verdict = Verdict.LIKELY_ORIGINAL;
   } else {
     verdict = Verdict.INSUFFICIENT_EVIDENCE;
@@ -123,7 +123,7 @@ function generateExplanation(verdict: Verdict, input: ScoringInput, aiProb: numb
   const parts: string[] = [];
 
   if (input.aiSuspicionScore !== undefined) {
-    if (aiProb >= 55) {
+    if (aiProb >= 75) {
       parts.push(`Visual analysis assessed a ${aiProb}% probability of AI generation — this content shows signals of being AI-generated.`);
     } else if (aiProb <= 25) {
       parts.push(`Visual analysis assessed a ${aiProb}% probability of AI generation — content appears authentic.`);
