@@ -106,7 +106,7 @@ export function computeVerdict(input: ScoringInput): ScoringOutput {
   // Otherwise → INSUFFICIENT_EVIDENCE (honest about uncertainty)
 
   let verdict: Verdict;
-  if (aiProb >= 75) {
+  if (aiProb >= 65) {
     verdict = Verdict.LIKELY_AI_GENERATED;
   } else if (isEditingSoftware && input.nearDuplicateFound) {
     verdict = Verdict.MANIPULATED_OR_EDITED;
@@ -123,7 +123,7 @@ function generateExplanation(verdict: Verdict, input: ScoringInput, aiProb: numb
   const parts: string[] = [];
 
   if (input.aiSuspicionScore !== undefined) {
-    if (aiProb >= 75) {
+    if (aiProb >= 65) {
       parts.push(`Visual analysis assessed a ${aiProb}% probability of AI generation — this content shows signals of being AI-generated.`);
     } else if (aiProb <= 25) {
       parts.push(`Visual analysis assessed a ${aiProb}% probability of AI generation — content appears authentic.`);
