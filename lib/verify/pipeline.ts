@@ -4,7 +4,7 @@ import { sha256, perceptualHashImage, hammingDistance } from '../media/hash';
 import { extractExif } from '../media/exif';
 import { extractVideoMetadata, extractFramesFromBuffer } from '../media/video';
 import { detectAiImage, detectAiVideo } from '../media/aiDetection';
-import { analyzeImageContent, analyzeVideoFrames } from '../media/visionAnalysis';
+import { analyzeImageContent, analyzeVideoFrames, analyzeTextContent } from '../media/visionAnalysis';
 import { detectImageWithHive, detectVideoFramesWithHive } from '../media/hiveDetection';
 import { detectVideoWithSightengine, detectImageWithSightengine } from '../media/sightengineDetection';
 import { detectImageWithAiOrNot, detectVideoWithAiOrNot } from '../media/aiornot';
@@ -53,8 +53,9 @@ async function fetchInstagramThumbnail(postUrl: string): Promise<{ buffer: Buffe
   // Build the oEmbed URL — use app token if available, else try unauthenticated (usually fails)
   const accessToken = appId && appSecret ? `${appId}|${appSecret}` : null;
   const oembedBase = 'https://graph.facebook.com/v21.0/instagram_oembed';
+  // Do NOT filter fields — let the API return everything so we catch thumbnail_url_with_play_button too (Reels)
   const oembedUrl = accessToken
-    ? `${oembedBase}?url=${encodeURIComponent(postUrl)}&fields=thumbnail_url&access_token=${accessToken}`
+    ? `${oembedBase}?url=${encodeURIComponent(postUrl)}&access_token=${accessToken}`
     : `https://api.instagram.com/oembed/?url=${encodeURIComponent(postUrl)}`;
 
   try {
@@ -63,17 +64,56 @@ async function fetchInstagramThumbnail(postUrl: string): Promise<{ buffer: Buffe
       console.warn('[instagram] oEmbed failed:', oembedRes.status, await oembedRes.text().catch(() => ''));
       return null;
     }
-    const data = await oembedRes.json() as { thumbnail_url?: string };
-    if (!data.thumbnail_url) return null;
+    const data = await oembedRes.json() as { thumbnail_url?: string; thumbnail_url_with_play_button?: string };
+    // Reels often only expose thumbnail_url_with_play_button, not bare thumbnail_url
+    const thumbUrl = data.thumbnail_url ?? data.thumbnail_url_with_play_button;
+    if (!thumbUrl) {
+      console.warn('[instagram] oEmbed: no thumbnail field in response, keys:', Object.keys(data).join(', '));
+      return null;
+    }
 
-    const imgRes = await fetch(data.thumbnail_url, { signal: AbortSignal.timeout(15000) });
+    const imgRes = await fetch(thumbUrl, { signal: AbortSignal.timeout(15000) });
     if (!imgRes.ok) return null;
     const ct = imgRes.headers.get('content-type') ?? '';
     if (!ct.startsWith('image/')) return null;
-    console.log('[instagram] oEmbed thumbnail downloaded:', data.thumbnail_url.slice(0, 60) + '…');
+    console.log('[instagram] oEmbed thumbnail downloaded:', thumbUrl.slice(0, 60) + '…');
     return { buffer: Buffer.from(await imgRes.arrayBuffer()), mimeType: ct.split(';')[0] };
   } catch (err) {
     console.warn('[instagram] oEmbed error:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/**
+ * Scrape Open Graph tags from any public URL.
+ * Returns og:image URL (if found) and og:description for text analysis.
+ */
+async function fetchOgData(pageUrl: string): Promise<{ imageUrl: string | null; text: string }> {
+  try {
+    const res = await fetch(pageUrl, {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SoulVerify/1.0)' },
+    });
+    if (!res.ok) return { imageUrl: null, text: '' };
+    const html = await res.text();
+    const ogImage   = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)?.[1] ?? null;
+    const ogDesc    = html.match(/<meta[^>]+(?:property=["']og:description["']|name=["']description["'])[^>]+content=["']([^"']+)["']/i)?.[1] ?? '';
+    const ogTitle   = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1] ?? '';
+    return { imageUrl: ogImage ?? null, text: [ogTitle, ogDesc].filter(Boolean).join(' — ') };
+  } catch {
+    return { imageUrl: null, text: '' };
+  }
+}
+
+/** Download an image from a URL and return its buffer + mime type. */
+async function fetchImageBuffer(imageUrl: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  try {
+    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(20000) });
+    if (!res.ok) return null;
+    const ct = res.headers.get('content-type') ?? 'image/jpeg';
+    if (!ct.startsWith('image/')) return null;
+    return { buffer: Buffer.from(await res.arrayBuffer()), mimeType: ct.split(';')[0] };
+  } catch {
     return null;
   }
 }
@@ -105,6 +145,7 @@ export async function runVerificationPipeline(input: PipelineInput): Promise<voi
     let buffer = input.buffer;
     let mimeType = input.mimeType ?? 'application/octet-stream';
     let thumbnailOnly = false; // true when we could only retrieve a platform thumbnail, not the source file
+    let ogTextFallback = ''; // og:title + og:description when no media could be fetched
 
     if (!buffer && input.sourceUrl) {
       const platform = getSocialPlatform(input.sourceUrl);
@@ -118,42 +159,113 @@ export async function runVerificationPipeline(input: PipelineInput): Promise<voi
           // Update the originalFilename hint so the pipeline picks the right extension
           if (!input.originalFilename) input.originalFilename = downloaded.filename;
         } else if (platform === 'instagram') {
-          // Download failed — try oEmbed thumbnail as last resort (works for photo posts)
+          // Download failed — try oEmbed thumbnail, then og:image scrape
           const thumb = await fetchInstagramThumbnail(input.sourceUrl);
           if (thumb) {
             buffer = thumb.buffer;
             mimeType = thumb.mimeType;
             thumbnailOnly = true;
           } else {
+            // Final fallback: scrape og:image + og:description from the page HTML
+            const og = await fetchOgData(input.sourceUrl);
+            if (og.imageUrl) {
+              const fetched = await fetchImageBuffer(og.imageUrl);
+              if (fetched) { buffer = fetched.buffer; mimeType = fetched.mimeType; thumbnailOnly = true; }
+            }
+            if (!buffer && og.text) {
+              // Text-only analysis path
+              ogTextFallback = og.text;
+            }
+            if (!buffer && !ogTextFallback) {
+              await finishInsufficient(
+                jobId,
+                'Could not download this Instagram content. Make sure the post is public, then try again. You can also download the file and upload it directly.',
+              );
+              return;
+            }
+          }
+        } else {
+          // For all other platforms: try og:image scrape before giving up
+          const og = await fetchOgData(input.sourceUrl);
+          if (og.imageUrl) {
+            const fetched = await fetchImageBuffer(og.imageUrl);
+            if (fetched) { buffer = fetched.buffer; mimeType = fetched.mimeType; thumbnailOnly = true; }
+          }
+          if (!buffer && og.text) {
+            ogTextFallback = og.text;
+          }
+          if (!buffer && !ogTextFallback) {
+            const name = platform.charAt(0).toUpperCase() + platform.slice(1);
             await finishInsufficient(
               jobId,
-              'Could not download this Instagram content. Make sure the post is public, then try again. You can also download the file and upload it directly.',
+              `Could not download ${name} content. Make sure the post is public, then try again.`,
             );
             return;
           }
-        } else {
-          const name = platform.charAt(0).toUpperCase() + platform.slice(1);
-          await finishInsufficient(
-            jobId,
-            `Could not download ${name} content via yt-dlp. Make sure the post is public, then try again.`,
-          );
-          return;
         }
       } else {
-        // Regular URL — fetch and validate content type
+        // Regular URL — fetch and check content type
         const res = await fetch(input.sourceUrl, { signal: AbortSignal.timeout(30000) });
         if (!res.ok) throw new Error(`Failed to fetch source URL: ${res.status}`);
         const ct = res.headers.get('content-type') ?? '';
         if (ct.startsWith('text/html') || ct.startsWith('text/plain')) {
-          await finishInsufficient(
-            jobId,
-            'The URL returned an HTML page rather than a media file. Submit a direct link to an image or video file.',
-          );
-          return;
+          // HTML page — try og:image scrape + text analysis
+          const og = await fetchOgData(input.sourceUrl);
+          if (og.imageUrl) {
+            const fetched = await fetchImageBuffer(og.imageUrl);
+            if (fetched) { buffer = fetched.buffer; mimeType = fetched.mimeType; thumbnailOnly = true; }
+          }
+          if (!buffer && og.text) {
+            ogTextFallback = og.text;
+          }
+          if (!buffer && !ogTextFallback) {
+            await finishInsufficient(
+              jobId,
+              'The URL returned an HTML page with no detectable media. Submit a direct link to an image or video file.',
+            );
+            return;
+          }
+        } else {
+          buffer = Buffer.from(await res.arrayBuffer());
+          mimeType = ct.split(';')[0] || mimeType;
         }
-        buffer = Buffer.from(await res.arrayBuffer());
-        mimeType = ct.split(';')[0] || mimeType;
       }
+    }
+
+    // Text-only analysis path — when no media buffer was obtained but we have OG text
+    if (!buffer && ogTextFallback) {
+      const textResult = await analyzeTextContent(ogTextFallback);
+      const aiProb = textResult?.aiProbability ?? 0;
+      const verdict = aiProb >= 65
+        ? Verdict.LIKELY_AI_GENERATED
+        : aiProb >= 26
+          ? Verdict.INSUFFICIENT_EVIDENCE
+          : Verdict.LIKELY_ORIGINAL;
+      const confidence = aiProb >= 65 ? Math.round(aiProb * 0.8) : aiProb <= 25 ? Math.round((100 - aiProb) * 0.6) : 30;
+      const explanation = textResult
+        ? `Text analysis only (no media available): ${textResult.reasoning}`
+        : 'No media could be retrieved. Only page text was analyzed — results may be limited.';
+
+      await prisma.analysisResult.create({
+        data: { jobId, verdict, confidence, explanation, summaryJson: { signalCount: textResult ? 1 : 0, textOnly: true } },
+      });
+
+      if (textResult) {
+        await prisma.evidenceSignal.create({
+          data: {
+            jobId,
+            category: 'content',
+            name: 'text_ai_probability',
+            value: `${textResult.aiProbability}`,
+            scoreImpact: 0,
+            detailsJson: { reasoning: textResult.reasoning, signals: textResult.signals } as object,
+          },
+        });
+      }
+
+      await prisma.publicReport.create({ data: { jobId, isPublic: true } });
+      await prisma.verificationJob.update({ where: { id: jobId }, data: { status: 'completed', completedAt: new Date() } });
+      return;
     }
 
     if (!buffer) throw new Error('No media buffer available');

@@ -65,7 +65,7 @@ async function pickBestFile(tmpDir: string): Promise<DownloadResult | null> {
 // Set COBALT_API_URL to override the endpoint (default: https://api.cobalt.tools/).
 
 interface CobaltResponse {
-  status: 'tunnel' | 'redirect' | 'picker' | 'error';
+  status: 'tunnel' | 'redirect' | 'picker' | 'error' | 'stream';
   url?: string;
   filename?: string;
   picker?: Array<{ type: string; url: string; filename?: string }>;
@@ -74,7 +74,7 @@ interface CobaltResponse {
 
 async function tryCobalt(url: string): Promise<DownloadResult | null> {
   const apiKey = process.env.COBALT_API_KEY;
-  const cobaltUrl = (process.env.COBALT_API_URL ?? 'https://api.cobalt.tools/').replace(/\/?$/, '/');
+  const cobaltBase = (process.env.COBALT_API_URL ?? 'https://api.cobalt.tools/').replace(/\/?$/, '/');
 
   const headers: Record<string, string> = {
     'Accept': 'application/json',
@@ -83,10 +83,27 @@ async function tryCobalt(url: string): Promise<DownloadResult | null> {
   if (apiKey) headers['Api-Key'] = apiKey;
 
   try {
-    const res = await fetch(cobaltUrl, {
+    // Auto-detect API version: v7 uses /api/json endpoint; v10+ uses root /
+    let apiVersion = 10;
+    try {
+      const info = await fetch(cobaltBase, { signal: AbortSignal.timeout(5_000) });
+      if (info.ok) {
+        const data = await info.json() as { cobalt?: { version?: string } };
+        const major = parseInt((data.cobalt?.version ?? '').split('.')[0], 10);
+        if (!isNaN(major)) apiVersion = major;
+      }
+    } catch { /* assume v10+ */ }
+
+    const isV7 = apiVersion < 10;
+    const endpoint = isV7 ? `${cobaltBase}api/json` : cobaltBase;
+    const body = isV7 ? { url } : { url, downloadMode: 'auto' };
+
+    console.log(`[cobalt] using v${apiVersion} API at ${endpoint}`);
+
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ url, downloadMode: 'auto' }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(30_000),
     });
 
@@ -102,11 +119,11 @@ async function tryCobalt(url: string): Promise<DownloadResult | null> {
       return null;
     }
 
-    // Resolve download URL
+    // Resolve download URL — handle v7 "stream" and v10+ "tunnel"/"redirect"
     let downloadUrl: string | null = null;
     let filename = 'media.mp4';
 
-    if (data.status === 'tunnel' || data.status === 'redirect') {
+    if (data.status === 'tunnel' || data.status === 'redirect' || data.status === 'stream') {
       downloadUrl = data.url ?? null;
       filename = data.filename ?? filename;
     } else if (data.status === 'picker' && data.picker?.length) {

@@ -45,12 +45,19 @@ export function SubmitForm() {
           Source URL
         </label>
         <input
-          type="url"
+          type="text"
           value={url}
           onChange={e => setUrl(e.target.value)}
-          placeholder="https://..."
+          placeholder="Paste any link — Instagram, TikTok, X, YouTube, article..."
           className="w-full bg-zinc-900 border border-zinc-800 rounded px-4 py-3 text-sm font-mono text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-zinc-600 transition-colors"
         />
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {['instagram.com/p/…', 'youtube.com/watch?v=…', 'x.com/user/status/…', 'tiktok.com/@user/video/…'].map(chip => (
+            <span key={chip} className="text-[10px] font-mono text-zinc-700 bg-zinc-900 border border-zinc-800 rounded px-2 py-0.5 select-none">
+              {chip}
+            </span>
+          ))}
+        </div>
       </div>
 
       <div className="flex items-center gap-3 text-zinc-700">
